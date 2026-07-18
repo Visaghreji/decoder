@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LSB Encoder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg: #0b0f0c;
+    --panel: #10150f;
+    --line: #1e2a1c;
+    --phosphor: #6dffa0;
+    --phosphor-dim: #2f6b47;
+    --amber: #ffb454;
+    --text: #cfe8d6;
+    --text-dim: #6f8a78;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    background-image:
+      linear-gradient(rgba(109,255,160,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(109,255,160,0.025) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .frame { width: 100%; max-width: 620px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.25em;
+    color: var(--phosphor-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--phosphor);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+    text-shadow: 0 0 18px rgba(109,255,160,0.25);
+  }
+
+  .sub {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+  }
+
+  #dropzone {
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #dropzone:hover, #dropzone.drag { background: rgba(109,255,160,0.04); }
+
+  #dropzone .icon {
+    font-size: 13px;
+    color: var(--phosphor-dim);
+    letter-spacing: 0.15em;
+    margin-bottom: 10px;
+  }
+
+  #dropzone .prompt { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+  #dropzone .hint { font-size: 11px; color: var(--text-dim); }
+
+  #fileInput { display: none; }
+
+  #preview-row {
+    display: none;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #preview-row.active { display: flex; }
+
+  #preview-thumb {
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    image-rendering: pixelated;
+  }
+
+  #preview-meta { flex: 1; min-width: 0; }
+
+  #preview-name {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #preview-dims { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  #preview-capacity { font-size: 11px; color: var(--phosphor-dim); margin-top: 2px; }
+
+  #message-row {
+    display: none;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #message-row.active { display: block; }
+
+  #message-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  #messageInput {
+    width: 100%;
+    background: #0b0f0c;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    padding: 12px 14px;
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.6;
+  }
+
+  #messageInput:focus {
+    outline: none;
+    border-color: var(--phosphor-dim);
+  }
+
+  .msg-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  #charCount { font-size: 11px; color: var(--text-dim); }
+  #charCount.over { color: var(--amber); }
+
+  #encodeBtn {
+    background: transparent;
+    border: 1px solid var(--phosphor-dim);
+    color: var(--phosphor);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    padding: 9px 16px;
+    border-radius: 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+
+  #encodeBtn:hover:not(:disabled) {
+    background: rgba(109,255,160,0.08);
+    border-color: var(--phosphor);
+  }
+
+  #encodeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #scanline-wrap {
+    display: none;
+    position: relative;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  #scanline-wrap.active { display: block; }
+
+  #workCanvas {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--line);
+    image-rendering: pixelated;
+  }
+
+  #laser {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: var(--phosphor);
+    box-shadow: 0 0 10px 2px rgba(109,255,160,0.7);
+    top: 20px;
+  }
+
+  #status { font-size: 11px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.05em; }
+
+  #result-wrap { display: none; padding: 20px 24px; }
+  #result-wrap.active { display: block; }
+
+  #result-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    color: var(--phosphor);
+  }
+
+  #saveHint {
+    font-size: 12px;
+    color: var(--phosphor);
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  #resultThumb {
+    display: block;
+    width: 100%;
+    max-height: 340px;
+    object-fit: contain;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    margin-bottom: 14px;
+    background: #050705;
+  }
+
+  #downloadRow { display: flex; align-items: center; gap: 14px; }
+
+  #downloadBtn {
+    flex: 1;
+    text-align: center;
+    background: rgba(109,255,160,0.08);
+    border: 1px solid var(--phosphor);
+    color: var(--phosphor);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    padding: 12px 16px;
+    border-radius: 2px;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: background 0.15s ease;
+  }
+
+  #downloadBtn:hover { background: rgba(109,255,160,0.16); }
+
+  .result-note {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .foot { margin-top: 16px; font-size: 11px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #laser { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="eyebrow">// lsb steganography</div>
+  <h1>Message Encoder</h1>
+  <div class="sub">Hides a text message inside an image by flipping the least-significant bit of each pixel channel. Always exports as PNG — JPEG re-compression would destroy the hidden bits.</div>
+
+  <div class="panel">
+    <div id="dropzone">
+      <div class="icon">[ + ]</div>
+      <div class="prompt">Choose a photo from your gallery</div>
+      <div class="hint">Any image format in — output is always PNG</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+
+    <div id="preview-row">
+      <img id="preview-thumb" alt="preview">
+      <div id="preview-meta">
+        <div id="preview-name"></div>
+        <div id="preview-dims"></div>
+        <div id="preview-capacity"></div>
+      </div>
+    </div>
+
+    <div id="message-row">
+      <div id="message-label">Secret message</div>
+      <textarea id="messageInput" placeholder="Type what you want hidden in the image..."></textarea>
+      <div class="msg-footer">
+        <span id="charCount">0 characters</span>
+        <button id="encodeBtn" disabled>Encode</button>
+      </div>
+    </div>
+
+    <div id="scanline-wrap">
+      <canvas id="workCanvas"></canvas>
+      <div id="laser"></div>
+      <div id="status">writing bits to pixel array...</div>
+    </div>
+
+    <div id="result-wrap">
+      <div id="result-label">>> message embedded</div>
+      <div id="saveHint">Press and hold the image below → "Download image" / "Save image" to save it to your gallery</div>
+      <img id="resultThumb" alt="result">
+      <div id="downloadRow">
+        <a id="downloadBtn" href="#" download="output.png">Download output.png</a>
+      </div>
+      <div class="result-note">If the button above opens a new tab instead of saving, use the press-and-hold method — it works on every browser. Save this file as-is: sharing it through an app that recompresses images (some chat apps, some gallery "share" flows) can strip the hidden data.</div>
+    </div>
+  </div>
+
+  <div class="foot">Runs entirely in your browser. Nothing is uploaded anywhere.</div>
+</div>
+
+<script>
+const DELIMITER = "1111111111111110";
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const previewRow = document.getElementById('preview-row');
+const previewThumb = document.getElementById('preview-thumb');
+const previewName = document.getElementById('preview-name');
+const previewDims = document.getElementById('preview-dims');
+const previewCapacity = document.getElementById('preview-capacity');
+const messageRow = document.getElementById('message-row');
+const messageInput = document.getElementById('messageInput');
+const charCount = document.getElementById('charCount');
+const encodeBtn = document.getElementById('encodeBtn');
+const scanlineWrap = document.getElementById('scanline-wrap');
+const workCanvas = document.getElementById('workCanvas');
+const laser = document.getElementById('laser');
+const status = document.getElementById('status');
+const resultWrap = document.getElementById('result-wrap');
+const resultThumb = document.getElementById('resultThumb');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let currentImage = null;
+let capacityBits = 0;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    currentImage = img;
+    capacityBits = img.width * img.height * 3;
+
+    previewThumb.src = url;
+    previewName.textContent = file.name;
+    previewDims.textContent = `${img.width} × ${img.height}px`;
+    previewCapacity.textContent = `capacity: ~${Math.floor(capacityBits / 8)} characters`;
+    previewRow.classList.add('active');
+    messageRow.classList.add('active');
+    resultWrap.classList.remove('active');
+    scanlineWrap.classList.remove('active');
+    updateCharCount();
+  };
+  img.src = url;
+}
+
+messageInput.addEventListener('input', updateCharCount);
+
+function updateCharCount() {
+  const len = messageInput.value.length;
+  const neededBits = len * 8 + DELIMITER.length;
+  charCount.textContent = `${len} characters`;
+  charCount.className = neededBits > capacityBits ? 'over' : '';
+  encodeBtn.disabled = len === 0 || neededBits > capacityBits;
+  if (neededBits > capacityBits && len > 0) {
+    charCount.textContent = `${len} characters — too long for this image`;
+  }
+}
+
+encodeBtn.addEventListener('click', () => {
+  if (!currentImage || !messageInput.value) return;
+  encodeBtn.disabled = true;
+  resultWrap.classList.remove('active');
+  scanlineWrap.classList.add('active');
+  status.textContent = 'writing bits to pixel array...';
+
+  const ctx = workCanvas.getContext('2d');
+  const w = currentImage.width;
+  const h = currentImage.height;
+  workCanvas.width = w;
+  workCanvas.height = h;
+  ctx.drawImage(currentImage, 0, 0, w, h);
+
+  const displayHeight = workCanvas.getBoundingClientRect().height;
+  let laserPos = 0;
+  const laserInterval = setInterval(() => {
+    laserPos += displayHeight / 30;
+    laser.style.top = Math.min(laserPos, displayHeight) + 20 + 'px';
+    if (laserPos >= displayHeight) clearInterval(laserInterval);
+  }, 25);
+
+  setTimeout(() => {
+    encodeLSB(ctx, w, h, messageInput.value);
+    const dataUrl = workCanvas.toDataURL('image/png');
+    resultThumb.src = dataUrl;
+    downloadBtn.href = dataUrl;
+    resultWrap.classList.add('active');
+    encodeBtn.disabled = false;
+  }, 750);
+});
+
+function textToBits(text) {
+  let bits = '';
+  for (let i = 0; i < text.length; i++) {
+    bits += text.charCodeAt(i).toString(2).padStart(8, '0');
+  }
+  return bits;
+}
+
+function encodeLSB(ctx, w, h, message) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  const bits = textToBits(message) + DELIMITER;
+
+  let bitIndex = 0;
+  for (let i = 0; i < data.length && bitIndex < bits.length; i += 4) {
+    for (let c = 0; c < 3 && bitIndex < bits.length; c++) {
+      data[i + c] = (data[i + c] & ~1) | parseInt(bits[bitIndex]);
+      bitIndex++;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+</script>
+
+</body>
+</html>
